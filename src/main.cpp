@@ -26,6 +26,8 @@ void processInput(GLFWwindow *window);
 
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods);
 
+unsigned int loadTexture(char const * path, bool gammaCorrection);
+
 // settings
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
@@ -57,10 +59,32 @@ struct ProgramState {
     Camera camera;
     bool CameraMouseMovementUpdateEnabled = true;
 
-    glm::vec3 tablePosition = glm::vec3(0.5f);
-    float tableScale = 0.15f;
+    glm::vec3 tablePosition = glm::vec3(0.5f, 0.55f, 0.5f);
+    float tableScale = 0.25f;
+
+    glm::vec3 chair1Position = glm::vec3(1.4f, 0.71f, -0.2f);
+    float chair1Scale = 0.001f;
+
+    glm::vec3 chair2Position = glm::vec3(-1.0f, 0.71f, -0.2f);
+
+    glm::vec3 folderPosition = glm::vec3(0.7f, 0.97f, 0.1f);
+    float folderScale = 0.01f;
+
+    glm::vec3 tableLampPosition = glm::vec3(0.7f, 1.18f, -0.25f);
+    float tableLampScale = 0.01f;
+
+    glm::vec3 lampPosition = glm::vec3(0.7f, 3.0f, 0.5f);
+    float lampScale = 0.01f;
+
+    glm::vec3 planePosition = glm::vec3(0.5f);
+    float planeScale = 0.4f;
+
+    glm::vec3 wallPosition = glm::vec3(0.5f,0.0f,-3.0f);
+    glm::vec3 wallPosition2 = glm::vec3(-2.5f, 0.0f, 0.5f);
+    float wallScale = 0.4f;
 
     PointLight pointLight;
+    PointLight lampPointLight;
     ProgramState()
             : camera(glm::vec3(0.0f, 0.0f, 3.0f)) {}
 
@@ -130,7 +154,6 @@ int main() {
     glfwSetKeyCallback(window, key_callback);
     // tell GLFW to capture our mouse
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-
     // glad: load all OpenGL function pointers
     // ---------------------------------------
     if (!gladLoadGLLoader((GLADloadproc) glfwGetProcAddress)) {
@@ -143,9 +166,9 @@ int main() {
 
     programState = new ProgramState;
     programState->LoadFromFile("resources/program_state.txt");
-    if (programState->ImGuiEnabled) {
+    /*if (programState->ImGuiEnabled) {
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-    }
+    }*/
     // Init Imgui
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -166,6 +189,60 @@ int main() {
     Shader ourShader("resources/shaders/model_loading.vs", "resources/shaders/model_loading.fs");
     Shader screenShader("resources/shaders/aa.vs", "resources/shaders/aa.fs");
     //Shader ourShader("resources/shaders/2.model_lighting.vs", "resources/shaders/2.model_lighting.fs");
+
+    float floorVertices[] = {
+            10.0f, -0.5f,  10.0f,  0.0f, 1.0f, 0.0f,  10.0f,  0.0f,
+            -10.0f, -0.5f,  10.0f,  0.0f, 1.0f, 0.0f,   0.0f,  0.0f,
+            -10.0f, -0.5f, -10.0f,  0.0f, 1.0f, 0.0f,   0.0f, 10.0f,
+
+            10.0f, -0.5f,  10.0f,  0.0f, 1.0f, 0.0f,  10.0f,  0.0f,
+            -10.0f, -0.5f, -10.0f,  0.0f, 1.0f, 0.0f,   0.0f, 10.0f,
+            10.0f, -0.5f, -10.0f,  0.0f, 1.0f, 0.0f,  10.0f, 10.0f
+    };
+
+    unsigned  int floorVAO, floorVBO;
+    glGenVertexArrays(1, &floorVAO);
+    glGenBuffers(1, &floorVBO);
+    glBindVertexArray(floorVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, floorVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(floorVertices), floorVertices, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+    glBindVertexArray(0);
+
+    unsigned int floorTexture = loadTexture("resources/textures/WoodFlooring.jpg", false);
+    unsigned int floorTextureSpecular = loadTexture("resources/textures/WoodFlooring_specular.jpg", false);
+
+    float wallVertices[] = {
+            10.0f, -0.5f,  10.0f,  0.0f, 1.0f, 0.0f,  10.0f,  0.0f,
+            -10.0f, -0.5f,  10.0f,  0.0f, 1.0f, 0.0f,   0.0f,  0.0f,
+            -10.0f, -0.5f, -10.0f,  0.0f, 1.0f, 0.0f,   0.0f, 10.0f,
+
+            10.0f, -0.5f,  10.0f,  0.0f, 1.0f, 0.0f,  10.0f,  0.0f,
+            -10.0f, -0.5f, -10.0f,  0.0f, 1.0f, 0.0f,   0.0f, 10.0f,
+            10.0f, -0.5f, -10.0f,  0.0f, 1.0f, 0.0f,  10.0f, 10.0f
+    };
+
+    unsigned int wallVAO, wallVBO;
+    glGenVertexArrays(1, &wallVAO);
+    glGenBuffers(1, &wallVBO);
+    glBindVertexArray(wallVAO);
+    glBindBuffer(GL_ARRAY_BUFFER,wallVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(wallVertices), wallVertices, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+    glBindVertexArray(0);
+
+    unsigned int wallTexture = loadTexture("resources/textures/Plaster17.jpg", false);
+
 
     float quadVertices[] = {
       -1.0f, 1.0f, 0.0f, 1.0f,
@@ -232,7 +309,17 @@ int main() {
     Model tableModel("resources/objects/01STO/Sto.obj");
     tableModel.SetShaderTextureNamePrefix("material.");
 
+    Model chairModel_1("resources/objects/01Stolica/Stolica.obj");
+    chairModel_1.SetShaderTextureNamePrefix("material.");
 
+    Model folderModel("resources/objects/04Folder/Folder.obj");
+    folderModel.SetShaderTextureNamePrefix("material.");
+
+    Model tableLampModel("resources/objects/03Lampa02/Lampa02.obj");
+    folderModel.SetShaderTextureNamePrefix("material.");
+
+    Model lampModel("resources/objects/02Lampa01/Lampa01.obj");
+    folderModel.SetShaderTextureNamePrefix("material.");
 
     //PointLight& pointLight = programState->pointLight;
     PointLight pointLight;
@@ -244,6 +331,16 @@ int main() {
     pointLight.constant = 1.0f;
     pointLight.linear = 0.09f;
     pointLight.quadratic = 0.032f;
+
+    PointLight tablePointLight;
+    tablePointLight.position = glm::vec3(0.679f, 2.206f, 0.472f);
+    tablePointLight.ambient = glm::vec3(0.6f, 0.6f, 0.6f);
+    tablePointLight.diffuse = glm::vec3(0.6, 0.6, 0.6);
+    tablePointLight.specular = glm::vec3(0.7, 0.7, 0.7);
+
+    tablePointLight.constant = 1.0f;
+    tablePointLight.linear = 0.09f;
+    tablePointLight.quadratic = 0.032f;
 
     screenShader.setInt("screenTexture", 0);
 
@@ -277,7 +374,7 @@ int main() {
 
         // don't forget to enable shader before setting uniforms
         ourShader.use();
-        pointLight.position = glm::vec3(4.0 * cos(currentFrame), 4.0f, 4.0 * sin(currentFrame));
+       /* pointLight.position = glm::vec3(4.0 * cos(currentFrame), 4.0f, 4.0 * sin(currentFrame));
         ourShader.setVec3("pointLight.position", pointLight.position);
         ourShader.setVec3("pointLight.ambient", pointLight.ambient);
         ourShader.setVec3("pointLight.diffuse", pointLight.diffuse);
@@ -285,6 +382,16 @@ int main() {
         ourShader.setFloat("pointLight.constant", pointLight.constant);
         ourShader.setFloat("pointLight.linear", pointLight.linear);
         ourShader.setFloat("pointLight.quadratic", pointLight.quadratic);
+        ourShader.setVec3("viewPosition", programState->camera.Position);
+        ourShader.setFloat("material.shininess", 32.0f);*/
+
+        ourShader.setVec3("pointLight.position", tablePointLight.position);
+        ourShader.setVec3("pointLight.ambient", tablePointLight.ambient);
+        ourShader.setVec3("pointLight.diffuse", tablePointLight.diffuse);
+        ourShader.setVec3("pointLight.specular", tablePointLight.specular);
+        ourShader.setFloat("pointLight.constant", tablePointLight.constant);
+        ourShader.setFloat("pointLight.linear", tablePointLight.linear);
+        ourShader.setFloat("pointLight.quadratic", tablePointLight.quadratic);
         ourShader.setVec3("viewPosition", programState->camera.Position);
         ourShader.setFloat("material.shininess", 32.0f);
         // view/projection transformations
@@ -294,14 +401,84 @@ int main() {
         ourShader.setMat4("projection", projection);
         ourShader.setMat4("view", view);
 
-        // render the loaded model
         glm::mat4 model = glm::mat4(1.0f);
+
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, programState->planePosition);
+        model = glm::scale(model, glm::vec3(programState->planeScale));
+        ourShader.setMat4("model", model);
+
+        glBindVertexArray(floorVAO);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, floorTexture);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        glBindVertexArray(0);
+
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, programState->wallPosition);
+        model = glm::rotate(model, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        model = glm::scale(model, glm::vec3(programState->wallScale));
+        ourShader.setMat4("model", model);
+
+        glBindVertexArray(wallVAO);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, wallTexture);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        glBindVertexArray(0);
+
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, programState->wallPosition2);
+        model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        model = glm::scale(model, glm::vec3(programState->wallScale));
+        ourShader.setMat4("model", model);
+
+        glBindVertexArray(wallVAO);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, wallTexture);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        glBindVertexArray(0);
+        // render the loaded model
 
         model = glm::mat4(1.0f);
         model = glm::translate(model, programState->tablePosition);
         model = glm::scale(model, glm::vec3(programState->tableScale));
         ourShader.setMat4("model", model);
         tableModel.Draw(ourShader);
+
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, programState->chair1Position);
+        model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::scale(model, glm::vec3(programState->chair1Scale));
+        ourShader.setMat4("model", model);
+        chairModel_1.Draw(ourShader);
+
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, programState->chair2Position);
+        model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::scale(model, glm::vec3(programState->chair1Scale));
+        ourShader.setMat4("model", model);
+        chairModel_1.Draw(ourShader);
+
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, programState->folderPosition);
+        model = glm::rotate(model, glm::radians(46.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::scale(model, glm::vec3(programState->folderScale));
+        ourShader.setMat4("model", model);
+        folderModel.Draw(ourShader);
+
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, programState->tableLampPosition);
+        model = glm::rotate(model, glm::radians(-87.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::scale(model, glm::vec3(programState->tableLampScale));
+        ourShader.setMat4("model", model);
+        tableLampModel.Draw(ourShader);
+
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, programState->lampPosition);
+        ///model = glm::rotate(model, glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        model = glm::scale(model, glm::vec3(programState->lampScale));
+        ourShader.setMat4("model", model);
+        lampModel.Draw(ourShader);
 
         glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, intermediateFBO);
@@ -431,4 +608,50 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         }
     }
+}
+
+unsigned int loadTexture(char const * path, bool gammaCorrection)
+{
+    unsigned int textureID;
+    glGenTextures(1, &textureID);
+
+    int width, height, nrComponents;
+    unsigned char *data = stbi_load(path, &width, &height, &nrComponents, 0);
+    if (data)
+    {
+        GLenum internalFormat;
+        GLenum dataFormat;
+        if (nrComponents == 1)
+        {
+            internalFormat = dataFormat = GL_RED;
+        }
+        else if (nrComponents == 3)
+        {
+            internalFormat = gammaCorrection ? GL_SRGB : GL_RGB;
+            dataFormat = GL_RGB;
+        }
+        else if (nrComponents == 4)
+        {
+            internalFormat = gammaCorrection ? GL_SRGB_ALPHA : GL_RGBA;
+            dataFormat = GL_RGBA;
+        }
+
+        glBindTexture(GL_TEXTURE_2D, textureID);
+        glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, dataFormat, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        stbi_image_free(data);
+    }
+    else
+    {
+        std::cout << "Texture failed to load at path: " << path << std::endl;
+        stbi_image_free(data);
+    }
+
+    return textureID;
 }
