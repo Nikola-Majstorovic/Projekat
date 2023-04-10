@@ -17,16 +17,13 @@
 #include <iostream>
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
-
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
-
 void scroll_callback(GLFWwindow *window, double xoffset, double yoffset);
-
 void processInput(GLFWwindow *window);
-
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods);
-
+void renderScene(Shader &ourShader);
 unsigned int loadTexture(char const * path, bool gammaCorrection);
+void loadModels();
 
 // settings
 const unsigned int SCR_WIDTH = 800;
@@ -53,40 +50,26 @@ struct PointLight {
     float quadratic;
 };
 
+unsigned  int floorVAO, floorVBO;
+unsigned int wallVAO, wallVBO;
+unsigned int floorTexture;
+unsigned int wallTexture;
+
+Model *tableModel;
+Model *chairModel_1;
+Model *folderModel;
+Model *tableLampModel;
+Model *lampModel;
+
+Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
+bool CameraMouseMovementUpdateEnabled = true;
 struct ProgramState {
     glm::vec3 clearColor = glm::vec3(0);
     bool ImGuiEnabled = false;
-    Camera camera;
+    /*Camera camera;
     bool CameraMouseMovementUpdateEnabled = true;
-
-    glm::vec3 tablePosition = glm::vec3(0.5f, 0.55f, 0.5f);
-    float tableScale = 0.25f;
-
-    glm::vec3 chair1Position = glm::vec3(1.4f, 0.71f, -0.2f);
-    float chair1Scale = 0.001f;
-
-    glm::vec3 chair2Position = glm::vec3(-1.0f, 0.71f, -0.2f);
-
-    glm::vec3 folderPosition = glm::vec3(0.7f, 0.97f, 0.1f);
-    float folderScale = 0.01f;
-
-    glm::vec3 tableLampPosition = glm::vec3(0.7f, 1.18f, -0.25f);
-    float tableLampScale = 0.01f;
-
-    glm::vec3 lampPosition = glm::vec3(0.7f, 3.0f, 0.5f);
-    float lampScale = 0.01f;
-
-    glm::vec3 planePosition = glm::vec3(0.5f);
-    float planeScale = 0.4f;
-
-    glm::vec3 wallPosition = glm::vec3(0.5f,0.0f,-3.0f);
-    glm::vec3 wallPosition2 = glm::vec3(-2.5f, 0.0f, 0.5f);
-    float wallScale = 0.4f;
-
-    PointLight pointLight;
-    PointLight lampPointLight;
     ProgramState()
-            : camera(glm::vec3(0.0f, 0.0f, 3.0f)) {}
+            : camera(glm::vec3(0.0f, 0.0f, 3.0f)) {}*/
 
     void SaveToFile(std::string filename);
 
@@ -183,12 +166,15 @@ int main() {
     // configure global opengl state
     // -----------------------------
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     // build and compile shaders
-    // -------------------------
     Shader ourShader("resources/shaders/model_loading.vs", "resources/shaders/model_loading.fs");
+   // Shader simpleDepthShader("resources/shader/depth_shader.vs", "resources/shaders/depth_shader.fs");
     Shader screenShader("resources/shaders/aa.vs", "resources/shaders/aa.fs");
-    //Shader ourShader("resources/shaders/2.model_lighting.vs", "resources/shaders/2.model_lighting.fs");
 
     float floorVertices[] = {
             10.0f, -0.5f,  10.0f,  0.0f, 1.0f, 0.0f,  10.0f,  0.0f,
@@ -200,7 +186,16 @@ int main() {
             10.0f, -0.5f, -10.0f,  0.0f, 1.0f, 0.0f,  10.0f, 10.0f
     };
 
-    unsigned  int floorVAO, floorVBO;
+    float quadVertices[] = {
+            -1.0f, 1.0f, 0.0f, 1.0f,
+            -1.0f, -1.0f, 0.0f, 0.0f,
+            1.0f, -1.0f, 1.0f, 0.0f,
+
+            -1.0f, 1.0f, 0.0f, 1.0f,
+            1.0f, -1.0f, 1.0f, 0.0f,
+            1.0f, 1.0f, 1.0f, 1.0f
+    };
+
     glGenVertexArrays(1, &floorVAO);
     glGenBuffers(1, &floorVBO);
     glBindVertexArray(floorVAO);
@@ -214,25 +209,13 @@ int main() {
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
     glBindVertexArray(0);
 
-    unsigned int floorTexture = loadTexture("resources/textures/WoodFlooring.jpg", false);
-    unsigned int floorTextureSpecular = loadTexture("resources/textures/WoodFlooring_specular.jpg", false);
+    floorTexture = loadTexture("resources/textures/WoodFlooring.jpg", false);
 
-    float wallVertices[] = {
-            10.0f, -0.5f,  10.0f,  0.0f, 1.0f, 0.0f,  10.0f,  0.0f,
-            -10.0f, -0.5f,  10.0f,  0.0f, 1.0f, 0.0f,   0.0f,  0.0f,
-            -10.0f, -0.5f, -10.0f,  0.0f, 1.0f, 0.0f,   0.0f, 10.0f,
-
-            10.0f, -0.5f,  10.0f,  0.0f, 1.0f, 0.0f,  10.0f,  0.0f,
-            -10.0f, -0.5f, -10.0f,  0.0f, 1.0f, 0.0f,   0.0f, 10.0f,
-            10.0f, -0.5f, -10.0f,  0.0f, 1.0f, 0.0f,  10.0f, 10.0f
-    };
-
-    unsigned int wallVAO, wallVBO;
     glGenVertexArrays(1, &wallVAO);
     glGenBuffers(1, &wallVBO);
     glBindVertexArray(wallVAO);
     glBindBuffer(GL_ARRAY_BUFFER,wallVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(wallVertices), wallVertices, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(floorVertices), floorVertices, GL_STATIC_DRAW);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
@@ -241,18 +224,7 @@ int main() {
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
     glBindVertexArray(0);
 
-    unsigned int wallTexture = loadTexture("resources/textures/Plaster17.jpg", false);
-
-
-    float quadVertices[] = {
-      -1.0f, 1.0f, 0.0f, 1.0f,
-      -1.0f, -1.0f, 0.0f, 0.0f,
-      1.0f, -1.0f, 1.0f, 0.0f,
-
-      -1.0f, 1.0f, 0.0f, 1.0f,
-      1.0f, -1.0f, 1.0f, 0.0f,
-      1.0f, 1.0f, 1.0f, 1.0f
-    };
+    wallTexture = loadTexture("resources/textures/Plaster17.jpg", false);
 
     unsigned int quadVAO, quadVBO;
     glGenVertexArrays(1, &quadVAO);
@@ -265,7 +237,8 @@ int main() {
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof (float), (void*)(2 * sizeof(float)));
 
-    unsigned  int framebuffer;
+    //AA
+    unsigned int framebuffer;
     glGenFramebuffers(1, &framebuffer);
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
 
@@ -305,32 +278,7 @@ int main() {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     // load models
     // -----------
-
-    Model tableModel("resources/objects/01STO/Sto.obj");
-    tableModel.SetShaderTextureNamePrefix("material.");
-
-    Model chairModel_1("resources/objects/01Stolica/Stolica.obj");
-    chairModel_1.SetShaderTextureNamePrefix("material.");
-
-    Model folderModel("resources/objects/04Folder/Folder.obj");
-    folderModel.SetShaderTextureNamePrefix("material.");
-
-    Model tableLampModel("resources/objects/03Lampa02/Lampa02.obj");
-    folderModel.SetShaderTextureNamePrefix("material.");
-
-    Model lampModel("resources/objects/02Lampa01/Lampa01.obj");
-    folderModel.SetShaderTextureNamePrefix("material.");
-
-    //PointLight& pointLight = programState->pointLight;
-    PointLight pointLight;
-    pointLight.position = glm::vec3(4.0f, 4.0, 0.0);
-    pointLight.ambient = glm::vec3(0.7, 0.7, 0.7);
-    pointLight.diffuse = glm::vec3(0.6, 0.6, 0.6);
-    pointLight.specular = glm::vec3(1.0, 1.0, 1.0);
-
-    pointLight.constant = 1.0f;
-    pointLight.linear = 0.09f;
-    pointLight.quadratic = 0.032f;
+    loadModels();
 
     PointLight tablePointLight;
     tablePointLight.position = glm::vec3(0.679f, 2.206f, 0.472f);
@@ -374,16 +322,6 @@ int main() {
 
         // don't forget to enable shader before setting uniforms
         ourShader.use();
-       /* pointLight.position = glm::vec3(4.0 * cos(currentFrame), 4.0f, 4.0 * sin(currentFrame));
-        ourShader.setVec3("pointLight.position", pointLight.position);
-        ourShader.setVec3("pointLight.ambient", pointLight.ambient);
-        ourShader.setVec3("pointLight.diffuse", pointLight.diffuse);
-        ourShader.setVec3("pointLight.specular", pointLight.specular);
-        ourShader.setFloat("pointLight.constant", pointLight.constant);
-        ourShader.setFloat("pointLight.linear", pointLight.linear);
-        ourShader.setFloat("pointLight.quadratic", pointLight.quadratic);
-        ourShader.setVec3("viewPosition", programState->camera.Position);
-        ourShader.setFloat("material.shininess", 32.0f);*/
 
         ourShader.setVec3("pointLight.position", tablePointLight.position);
         ourShader.setVec3("pointLight.ambient", tablePointLight.ambient);
@@ -392,93 +330,16 @@ int main() {
         ourShader.setFloat("pointLight.constant", tablePointLight.constant);
         ourShader.setFloat("pointLight.linear", tablePointLight.linear);
         ourShader.setFloat("pointLight.quadratic", tablePointLight.quadratic);
-        ourShader.setVec3("viewPosition", programState->camera.Position);
+        ourShader.setVec3("viewPosition", camera.Position);
         ourShader.setFloat("material.shininess", 32.0f);
         // view/projection transformations
-        glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),
+        glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom),
                                                 (float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
-        glm::mat4 view = programState->camera.GetViewMatrix();
+        glm::mat4 view = camera.GetViewMatrix();
         ourShader.setMat4("projection", projection);
         ourShader.setMat4("view", view);
 
-        glm::mat4 model = glm::mat4(1.0f);
-
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, programState->planePosition);
-        model = glm::scale(model, glm::vec3(programState->planeScale));
-        ourShader.setMat4("model", model);
-
-        glBindVertexArray(floorVAO);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, floorTexture);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
-        glBindVertexArray(0);
-
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, programState->wallPosition);
-        model = glm::rotate(model, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-        model = glm::scale(model, glm::vec3(programState->wallScale));
-        ourShader.setMat4("model", model);
-
-        glBindVertexArray(wallVAO);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, wallTexture);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
-        glBindVertexArray(0);
-
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, programState->wallPosition2);
-        model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        model = glm::scale(model, glm::vec3(programState->wallScale));
-        ourShader.setMat4("model", model);
-
-        glBindVertexArray(wallVAO);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, wallTexture);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
-        glBindVertexArray(0);
-        // render the loaded model
-
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, programState->tablePosition);
-        model = glm::scale(model, glm::vec3(programState->tableScale));
-        ourShader.setMat4("model", model);
-        tableModel.Draw(ourShader);
-
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, programState->chair1Position);
-        model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        model = glm::scale(model, glm::vec3(programState->chair1Scale));
-        ourShader.setMat4("model", model);
-        chairModel_1.Draw(ourShader);
-
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, programState->chair2Position);
-        model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        model = glm::scale(model, glm::vec3(programState->chair1Scale));
-        ourShader.setMat4("model", model);
-        chairModel_1.Draw(ourShader);
-
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, programState->folderPosition);
-        model = glm::rotate(model, glm::radians(46.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        model = glm::scale(model, glm::vec3(programState->folderScale));
-        ourShader.setMat4("model", model);
-        folderModel.Draw(ourShader);
-
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, programState->tableLampPosition);
-        model = glm::rotate(model, glm::radians(-87.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        model = glm::scale(model, glm::vec3(programState->tableLampScale));
-        ourShader.setMat4("model", model);
-        tableLampModel.Draw(ourShader);
-
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, programState->lampPosition);
-        ///model = glm::rotate(model, glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-        model = glm::scale(model, glm::vec3(programState->lampScale));
-        ourShader.setMat4("model", model);
-        lampModel.Draw(ourShader);
+        renderScene(ourShader);
 
         glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, intermediateFBO);
@@ -524,13 +385,13 @@ void processInput(GLFWwindow *window) {
         glfwSetWindowShouldClose(window, true);
 
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-        programState->camera.ProcessKeyboard(FORWARD, deltaTime);
+        camera.ProcessKeyboard(FORWARD, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-        programState->camera.ProcessKeyboard(BACKWARD, deltaTime);
+        camera.ProcessKeyboard(BACKWARD, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-        programState->camera.ProcessKeyboard(LEFT, deltaTime);
+        camera.ProcessKeyboard(LEFT, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-        programState->camera.ProcessKeyboard(RIGHT, deltaTime);
+        camera.ProcessKeyboard(RIGHT, deltaTime);
 }
 
 // glfw: whenever the window size changed (by OS or user resize) this callback function executes
@@ -556,14 +417,14 @@ void mouse_callback(GLFWwindow *window, double xpos, double ypos) {
     lastX = xpos;
     lastY = ypos;
 
-    if (programState->CameraMouseMovementUpdateEnabled)
-        programState->camera.ProcessMouseMovement(xoffset, yoffset);
+    if (CameraMouseMovementUpdateEnabled)
+        camera.ProcessMouseMovement(xoffset, yoffset);
 }
 
 // glfw: whenever the mouse scroll wheel scrolls, this callback is called
 // ----------------------------------------------------------------------
 void scroll_callback(GLFWwindow *window, double xoffset, double yoffset) {
-    programState->camera.ProcessMouseScroll(yoffset);
+    camera.ProcessMouseScroll(yoffset);
 }
 
 void DrawImGui(ProgramState *programState) {
@@ -577,20 +438,16 @@ void DrawImGui(ProgramState *programState) {
         ImGui::Begin("Hello window");
         ImGui::Text("Hello text");
         ImGui::SliderFloat("Float slider", &f, 0.0, 1.0);
-
-        ImGui::DragFloat("pointLight.constant", &programState->pointLight.constant, 0.05, 0.0, 1.0);
-        ImGui::DragFloat("pointLight.linear", &programState->pointLight.linear, 0.05, 0.0, 1.0);
-        ImGui::DragFloat("pointLight.quadratic", &programState->pointLight.quadratic, 0.05, 0.0, 1.0);
         ImGui::End();
     }
 
     {
         ImGui::Begin("Camera info");
-        const Camera& c = programState->camera;
+        const Camera& c = camera;
         ImGui::Text("Camera position: (%f, %f, %f)", c.Position.x, c.Position.y, c.Position.z);
         ImGui::Text("(Yaw, Pitch): (%f, %f)", c.Yaw, c.Pitch);
         ImGui::Text("Camera front: (%f, %f, %f)", c.Front.x, c.Front.y, c.Front.z);
-        ImGui::Checkbox("Camera mouse update", &programState->CameraMouseMovementUpdateEnabled);
+        ImGui::Checkbox("Camera mouse update", &CameraMouseMovementUpdateEnabled);
         ImGui::End();
     }
 
@@ -602,7 +459,7 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
     if (key == GLFW_KEY_F1 && action == GLFW_PRESS) {
         programState->ImGuiEnabled = !programState->ImGuiEnabled;
         if (programState->ImGuiEnabled) {
-            programState->CameraMouseMovementUpdateEnabled = false;
+            CameraMouseMovementUpdateEnabled = false;
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         } else {
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -654,4 +511,109 @@ unsigned int loadTexture(char const * path, bool gammaCorrection)
     }
 
     return textureID;
+}
+
+void renderScene(Shader &ourShader)
+{
+    glm::mat4 model = glm::mat4(1.0f);
+
+    //FLOOR
+    model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(0.5f, 0.1f, 0.5f));
+    model = glm::rotate(model, glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    model = glm::scale(model, glm::vec3(0.4f));
+    ourShader.setMat4("model", model);
+    glBindVertexArray(floorVAO);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, floorTexture);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(0);
+
+    //WALL
+    model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(0.5f,0.0f,-3.0f));
+    model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    model = glm::scale(model, glm::vec3(0.4));
+    ourShader.setMat4("model", model);
+    glBindVertexArray(wallVAO);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, wallTexture);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(0);
+
+    //WALL
+    model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(-2.5f, 0.0f, 0.5f));
+    model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    model = glm::scale(model, glm::vec3(0.4));
+    ourShader.setMat4("model", model);
+    glBindVertexArray(wallVAO);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, wallTexture);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(0);
+
+    //TABLE
+    model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(0.5f, 0.55f, 0.5f));
+    model = glm::scale(model, glm::vec3(0.25));
+    ourShader.setMat4("model", model);
+    tableModel->Draw(ourShader);
+
+    //CHAIR1
+    model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(1.4f, 0.71f, -0.2f));
+    model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    model = glm::scale(model, glm::vec3(0.001));
+    ourShader.setMat4("model", model);
+    chairModel_1->Draw(ourShader);
+
+    //CHAIR2
+    model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(-1.0f, 0.71f, -0.2f));
+    model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    model = glm::scale(model, glm::vec3(0.001));
+    ourShader.setMat4("model", model);
+    chairModel_1->Draw(ourShader);
+
+    //FOLDER
+    model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(0.7f, 0.97f, 0.1f));
+    model = glm::rotate(model, glm::radians(46.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    model = glm::scale(model, glm::vec3(0.01));
+    ourShader.setMat4("model", model);
+    folderModel->Draw(ourShader);
+
+    //TABLE_LAMP
+    model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(0.7f, 1.18f, -0.25f));
+    model = glm::rotate(model, glm::radians(-87.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    model = glm::scale(model, glm::vec3(0.01f));
+    ourShader.setMat4("model", model);
+    tableLampModel->Draw(ourShader);
+
+    //LAMP
+    model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(0.7f, 3.0f, 0.5f));
+    model = glm::scale(model, glm::vec3(0.01f));
+    ourShader.setMat4("model", model);
+    lampModel->Draw(ourShader);
+}
+
+void loadModels()
+{
+    tableModel = new Model("resources/objects/01STO/Sto.obj");
+    tableModel->SetShaderTextureNamePrefix("material.");
+
+    chairModel_1 = new Model("resources/objects/01Stolica/Stolica.obj");
+    chairModel_1->SetShaderTextureNamePrefix("material.");
+
+    folderModel = new Model("resources/objects/04Folder/Folder.obj");
+    folderModel->SetShaderTextureNamePrefix("material.");
+
+    tableLampModel = new Model("resources/objects/03Lampa02/Lampa02.obj");
+    folderModel->SetShaderTextureNamePrefix("material.");
+
+    lampModel = new Model("resources/objects/02Lampa01/Lampa01.obj");
+    folderModel->SetShaderTextureNamePrefix("material.");
 }
