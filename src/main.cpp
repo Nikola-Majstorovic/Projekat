@@ -60,6 +60,8 @@ Model *chairModel_1;
 Model *folderModel;
 Model *tableLampModel;
 Model *lampModel;
+Model *floorModel;
+Model *wallModel;
 
 Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
 bool CameraMouseMovementUpdateEnabled = true;
@@ -166,6 +168,7 @@ int main() {
     // configure global opengl state
     // -----------------------------
     glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
     glEnable(GL_BLEND);
@@ -173,7 +176,7 @@ int main() {
 
     // build and compile shaders
     Shader ourShader("resources/shaders/model_loading.vs", "resources/shaders/model_loading.fs");
-   // Shader simpleDepthShader("resources/shader/depth_shader.vs", "resources/shaders/depth_shader.fs");
+    Shader simpleDepthShader("resources/shaders/depth_shader.vs", "resources/shaders/depth_shader.fs", "resources/shaders/depth_shader.gs");
     Shader screenShader("resources/shaders/aa.vs", "resources/shaders/aa.fs");
 
     float floorVertices[] = {
@@ -237,6 +240,26 @@ int main() {
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof (float), (void*)(2 * sizeof(float)));
 
+    const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
+    unsigned int depthMapFBO;
+    glGenFramebuffers(1, &depthMapFBO);
+    unsigned int depthCubemap;
+    glGenTextures(1, &depthCubemap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, depthCubemap);
+    for(unsigned int i = 0; i < 6; ++i)
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, depthCubemap, 0);
+    glDrawBuffer(GL_NONE);
+    glDrawBuffer(GL_NONE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+
     //AA
     unsigned int framebuffer;
     glGenFramebuffers(1, &framebuffer);
@@ -281,10 +304,12 @@ int main() {
     loadModels();
 
     PointLight tablePointLight;
-    tablePointLight.position = glm::vec3(0.679f, 2.206f, 0.472f);
-    tablePointLight.ambient = glm::vec3(0.6f, 0.6f, 0.6f);
+    tablePointLight.position = glm::vec3(0.679f, 1.206f, 0.472f);
+    tablePointLight.ambient = glm::vec3(0.2f, 0.2f, 0.2f);
     tablePointLight.diffuse = glm::vec3(0.6, 0.6, 0.6);
-    tablePointLight.specular = glm::vec3(0.7, 0.7, 0.7);
+    tablePointLight.specular = glm::vec3(0.4, 0.4, 0.4);
+
+
 
     tablePointLight.constant = 1.0f;
     tablePointLight.linear = 0.09f;
@@ -314,6 +339,30 @@ int main() {
         glClearColor(programState->clearColor.r, programState->clearColor.g, programState->clearColor.b, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+        float nearPlane = 1.0f;
+        float farPlane = 25.0f;
+        glm::mat4 shadowProj = glm::perspective(glm::radians(90.0f), (float)SHADOW_WIDTH / (float)SHADOW_HEIGHT, nearPlane, farPlane);
+        std::vector<glm::mat4> shadowTransforms;
+        shadowTransforms.push_back(shadowProj * glm::lookAt(tablePointLight.position, tablePointLight.position + glm::vec3( 1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)));
+        shadowTransforms.push_back(shadowProj * glm::lookAt(tablePointLight.position, tablePointLight.position + glm::vec3(-1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)));
+        shadowTransforms.push_back(shadowProj * glm::lookAt(tablePointLight.position, tablePointLight.position + glm::vec3( 0.0f,  1.0f,  0.0f), glm::vec3(0.0f,  0.0f,  1.0f)));
+        shadowTransforms.push_back(shadowProj * glm::lookAt(tablePointLight.position, tablePointLight.position + glm::vec3( 0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)));
+        shadowTransforms.push_back(shadowProj * glm::lookAt(tablePointLight.position, tablePointLight.position + glm::vec3( 0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)));
+        shadowTransforms.push_back(shadowProj * glm::lookAt(tablePointLight.position, tablePointLight.position + glm::vec3( 0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f)));
+
+        glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+        glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+        glClear(GL_DEPTH_BUFFER_BIT);
+        simpleDepthShader.use();
+        for(unsigned int i = 0; i < 6; i++)
+            simpleDepthShader.setMat4("shadowMatrices[" + std::to_string(i) + "]", shadowTransforms[i]);
+        simpleDepthShader.setFloat("far_plane", farPlane);
+        simpleDepthShader.setVec3("lightPos", tablePointLight.position);
+        renderScene(simpleDepthShader);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+        glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
+
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
 
         glClearColor(programState->clearColor.r, programState->clearColor.g, programState->clearColor.b, 1.0f);
@@ -322,7 +371,6 @@ int main() {
 
         // don't forget to enable shader before setting uniforms
         ourShader.use();
-
         ourShader.setVec3("pointLight.position", tablePointLight.position);
         ourShader.setVec3("pointLight.ambient", tablePointLight.ambient);
         ourShader.setVec3("pointLight.diffuse", tablePointLight.diffuse);
@@ -339,6 +387,10 @@ int main() {
         ourShader.setMat4("projection", projection);
         ourShader.setMat4("view", view);
 
+        ourShader.setFloat("far_plane", farPlane);
+        ourShader.setInt("depthMap", 15);
+        glActiveTexture(GL_TEXTURE15);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, depthCubemap);
         renderScene(ourShader);
 
         glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer);
@@ -517,6 +569,7 @@ void renderScene(Shader &ourShader)
 {
     glm::mat4 model = glm::mat4(1.0f);
 
+    /*
     //FLOOR
     model = glm::mat4(1.0f);
     model = glm::translate(model, glm::vec3(0.5f, 0.1f, 0.5f));
@@ -552,6 +605,21 @@ void renderScene(Shader &ourShader)
     glBindTexture(GL_TEXTURE_2D, wallTexture);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
+    */
+
+    //FLOOR
+    model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(0.5f, 0.3f, 0.5f));
+    model = glm::scale(model, glm::vec3(0.1));
+    ourShader.setMat4("model", model);
+    floorModel->Draw(ourShader);
+
+    //WALL
+    model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(0.5f, 0.3f, 0.5f));
+    model = glm::scale(model, glm::vec3(0.1));
+    ourShader.setMat4("model", model);
+    wallModel->Draw(ourShader);
 
     //TABLE
     model = glm::mat4(1.0f);
@@ -616,4 +684,10 @@ void loadModels()
 
     lampModel = new Model("resources/objects/02Lampa01/Lampa01.obj");
     folderModel->SetShaderTextureNamePrefix("material.");
+
+    floorModel = new Model("resources/objects/pod/POD.obj");
+    floorModel->SetShaderTextureNamePrefix("material.");
+
+    wallModel = new Model("resources/objects/zid/ZID.obj");
+    wallModel->SetShaderTextureNamePrefix("material.");
 }
