@@ -81,7 +81,7 @@ void main()
    // }
    // result += CalcSpotLight(spotLight, norm, FragPos, viewDir);
 
-   // FragColor = vec4(result, 1.0);
+   //FragColor = vec4(result, 1.0);
 }
 
 vec3 CalcDirLight(DirLight light, vec3 normal, vec3 viewDir)
@@ -153,7 +153,7 @@ float ShadowCalculation(vec3 fragPos, vec3 lightPos)
     float closestDepth = texture(depthMap, fragToLight).r;
     closestDepth *= far_plane;
     float currentDepth = length(fragToLight);
-    float bias = 0.005;
+    float bias = 0.05;
     float shadow = currentDepth - bias > closestDepth ? 1.0 : 0.0;
 
     FragColor = vec4(vec3(closestDepth / far_plane), 1.0);

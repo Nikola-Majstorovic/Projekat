@@ -167,8 +167,6 @@ int main() {
 
     // configure global opengl state
     // -----------------------------
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
     glEnable(GL_BLEND);
@@ -315,6 +313,10 @@ int main() {
     tablePointLight.linear = 0.09f;
     tablePointLight.quadratic = 0.032f;
 
+    ourShader.use();
+    ourShader.setInt("depthMap", 25);
+
+    screenShader.use();
     screenShader.setInt("screenTexture", 0);
 
     // draw in wireframe
@@ -363,7 +365,7 @@ int main() {
 
         glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+        //glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
 
         glClearColor(programState->clearColor.r, programState->clearColor.g, programState->clearColor.b, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -388,12 +390,11 @@ int main() {
         ourShader.setMat4("view", view);
 
         ourShader.setFloat("far_plane", farPlane);
-        ourShader.setInt("depthMap", 15);
-        glActiveTexture(GL_TEXTURE15);
+        glActiveTexture(GL_TEXTURE25);
         glBindTexture(GL_TEXTURE_CUBE_MAP, depthCubemap);
         renderScene(ourShader);
 
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer);
+       /* glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, intermediateFBO);
         glBlitFramebuffer(0, 0, SCR_WIDTH, SCR_HEIGHT, 0, 0, SCR_WIDTH, SCR_HEIGHT, GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
@@ -406,7 +407,7 @@ int main() {
         glBindVertexArray(quadVAO);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, screenTexture);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+        glDrawArrays(GL_TRIANGLES, 0, 6);*/
 
         if (programState->ImGuiEnabled)
             DrawImGui(programState);
