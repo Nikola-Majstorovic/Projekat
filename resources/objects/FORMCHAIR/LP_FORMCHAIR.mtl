@@ -1,0 +1,40 @@
+# Blender MTL File: 'LP_FORMCHAIR.blend'
+# Material Count: 3
+
+newmtl BUFFERS
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.750909 0.750909 0.750909
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+
+newmtl FORMBASE
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.000000 0.001479
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump Textures/FORMBASE/Normal.png
+map_Kd Textures/FORMBASE/BaseColor.png
+map_Ns Textures/FORMBASE/Roughness.png
+refl Textures/FORMBASE/Metallic.png
+
+newmtl FORMCHAIR
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.055830 0.187815 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump Textures/FORMCHAIR/Normal_4.png
+map_Kd Textures/FORMCHAIR/BaseColor_1.png
+map_Ns Textures/FORMCHAIR/Roughness_3.png
+refl Textures/FORMCHAIR/Metallic_2.png

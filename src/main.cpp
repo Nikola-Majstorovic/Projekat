@@ -21,13 +21,12 @@ void mouse_callback(GLFWwindow *window, double xpos, double ypos);
 void scroll_callback(GLFWwindow *window, double xoffset, double yoffset);
 void processInput(GLFWwindow *window);
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods);
-void renderScene(Shader &ourShader);
-unsigned int loadTexture(char const * path, bool gammaCorrection);
-void loadModels();
 
 // settings
-const unsigned int SCR_WIDTH = 800;
-const unsigned int SCR_HEIGHT = 600;
+const unsigned int SCR_WIDTH = 1600;
+const unsigned int SCR_HEIGHT = 900;
+bool shadows = true;
+
 
 // camera
 
@@ -50,33 +49,23 @@ struct PointLight {
     float quadratic;
 };
 
-unsigned  int floorVAO, floorVBO;
-unsigned int wallVAO, wallVBO;
-unsigned int floorTexture;
-unsigned int wallTexture;
-
-Model *tableModel;
-Model *chairModel_1;
-Model *folderModel;
-Model *tableLampModel;
-Model *lampModel;
-Model *floorModel;
-Model *wallModel;
-
-Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
-bool CameraMouseMovementUpdateEnabled = true;
 struct ProgramState {
     glm::vec3 clearColor = glm::vec3(0);
     bool ImGuiEnabled = false;
-    /*Camera camera;
+    Camera camera;
     bool CameraMouseMovementUpdateEnabled = true;
+    glm::vec3 backpackPosition = glm::vec3(0.0f);
+    float backpackScale = 1.0f;
+    PointLight pointLight;
     ProgramState()
-            : camera(glm::vec3(0.0f, 0.0f, 3.0f)) {}*/
+            : camera(glm::vec3(0.0f, 0.0f, 3.0f)) {}
 
     void SaveToFile(std::string filename);
 
     void LoadFromFile(std::string filename);
 };
+
+void DrawImGui(ProgramState *programState);
 
 void ProgramState::SaveToFile(std::string filename) {
     std::ofstream out(filename);
@@ -110,7 +99,10 @@ void ProgramState::LoadFromFile(std::string filename) {
 
 ProgramState *programState;
 
-void DrawImGui(ProgramState *programState);
+unsigned int loadTexture(const char *path, bool b);
+void renderScene(Shader shader, std::vector<Model*> models);
+void loadPointLights(std::vector<PointLight> *pointLights);
+void setPointLights(Shader shader, std::vector<PointLight> &pointLights);
 
 int main() {
     // glfw: initialize and configure
@@ -139,6 +131,7 @@ int main() {
     glfwSetKeyCallback(window, key_callback);
     // tell GLFW to capture our mouse
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
     // glad: load all OpenGL function pointers
     // ---------------------------------------
     if (!gladLoadGLLoader((GLADloadproc) glfwGetProcAddress)) {
@@ -147,13 +140,13 @@ int main() {
     }
 
     // tell stb_image.h to flip loaded texture's on the y-axis (before loading model).
-    stbi_set_flip_vertically_on_load(false);
+    stbi_set_flip_vertically_on_load(true);
 
     programState = new ProgramState;
     programState->LoadFromFile("resources/program_state.txt");
-    /*if (programState->ImGuiEnabled) {
+    if (programState->ImGuiEnabled) {
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-    }*/
+    }
     // Init Imgui
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -167,65 +160,29 @@ int main() {
 
     // configure global opengl state
     // -----------------------------
+    glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     // build and compile shaders
-    Shader ourShader("resources/shaders/model_loading.vs", "resources/shaders/model_loading.fs");
-    Shader simpleDepthShader("resources/shaders/depth_shader.vs", "resources/shaders/depth_shader.fs", "resources/shaders/depth_shader.gs");
-    Shader screenShader("resources/shaders/aa.vs", "resources/shaders/aa.fs");
+    // -------------------------
+    //Shader ourShader("resources/shaders/2.model_lighting.vs", "resources/shaders/2.model_lighting.fs");
+    Shader ourShader("resources/shaders/model_lightning_expanded.vs", "resources/shaders/model_lightning_expanded.fs");
+    Shader simpleDepthShader("resources/shaders/point_shadow_depth.vs", "resources/shaders/point_shadow_depth.fs", "resources/shaders/point_shadow_depth.gs");
+    Shader aaShader("resources/shaders/aa.vs", "resources/shaders/aa.fs");
 
-    float floorVertices[] = {
-            10.0f, -0.5f,  10.0f,  0.0f, 1.0f, 0.0f,  10.0f,  0.0f,
-            -10.0f, -0.5f,  10.0f,  0.0f, 1.0f, 0.0f,   0.0f,  0.0f,
-            -10.0f, -0.5f, -10.0f,  0.0f, 1.0f, 0.0f,   0.0f, 10.0f,
 
-            10.0f, -0.5f,  10.0f,  0.0f, 1.0f, 0.0f,  10.0f,  0.0f,
-            -10.0f, -0.5f, -10.0f,  0.0f, 1.0f, 0.0f,   0.0f, 10.0f,
-            10.0f, -0.5f, -10.0f,  0.0f, 1.0f, 0.0f,  10.0f, 10.0f
-    };
-
+    // custom AA ----------------------------------------------------------------------------
     float quadVertices[] = {
-            -1.0f, 1.0f, 0.0f, 1.0f,
-            -1.0f, -1.0f, 0.0f, 0.0f,
-            1.0f, -1.0f, 1.0f, 0.0f,
+            // positions   // texCoords
+            -1.0f,  1.0f,  0.0f, 1.0f,
+            -1.0f, -1.0f,  0.0f, 0.0f,
+            1.0f, -1.0f,  1.0f, 0.0f,
 
-            -1.0f, 1.0f, 0.0f, 1.0f,
-            1.0f, -1.0f, 1.0f, 0.0f,
-            1.0f, 1.0f, 1.0f, 1.0f
+            -1.0f,  1.0f,  0.0f, 1.0f,
+            1.0f, -1.0f,  1.0f, 0.0f,
+            1.0f,  1.0f,  1.0f, 1.0f
     };
-
-    glGenVertexArrays(1, &floorVAO);
-    glGenBuffers(1, &floorVBO);
-    glBindVertexArray(floorVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, floorVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(floorVertices), floorVertices, GL_STATIC_DRAW);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
-    glBindVertexArray(0);
-
-    floorTexture = loadTexture("resources/textures/WoodFlooring.jpg", false);
-
-    glGenVertexArrays(1, &wallVAO);
-    glGenBuffers(1, &wallVBO);
-    glBindVertexArray(wallVAO);
-    glBindBuffer(GL_ARRAY_BUFFER,wallVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(floorVertices), floorVertices, GL_STATIC_DRAW);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
-    glBindVertexArray(0);
-
-    wallTexture = loadTexture("resources/textures/Plaster17.jpg", false);
 
     unsigned int quadVAO, quadVBO;
     glGenVertexArrays(1, &quadVAO);
@@ -236,94 +193,98 @@ int main() {
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof (float), (void*)(2 * sizeof(float)));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4*sizeof(float), (void*)(2*sizeof(float)));
 
-    const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
-    unsigned int depthMapFBO;
-    glGenFramebuffers(1, &depthMapFBO);
-    unsigned int depthCubemap;
-    glGenTextures(1, &depthCubemap);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, depthCubemap);
-    for(unsigned int i = 0; i < 6; ++i)
-        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
-    glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, depthCubemap, 0);
-    glDrawBuffer(GL_NONE);
-    glDrawBuffer(GL_NONE);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-
-    //AA
     unsigned int framebuffer;
     glGenFramebuffers(1, &framebuffer);
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-
-    unsigned  int textureColorBufferMultiSampled;
-    glGenTextures(1, &textureColorBufferMultiSampled);
-    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, textureColorBufferMultiSampled);
+    unsigned int textureColorBufferMultisampled;
+    glGenTextures(1, &textureColorBufferMultisampled);
+    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, textureColorBufferMultisampled);
     glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 4, GL_RGB, SCR_WIDTH, SCR_HEIGHT, GL_TRUE);
     glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, textureColorBufferMultiSampled, 0);
-
-    unsigned int rbo;
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, textureColorBufferMultisampled, 0);
+    unsigned rbo;
     glGenRenderbuffers(1, &rbo);
     glBindRenderbuffer(GL_RENDERBUFFER, rbo);
     glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH24_STENCIL8, SCR_WIDTH, SCR_HEIGHT);
     glBindRenderbuffer(GL_RENDERBUFFER, 0);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
 
-    if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-        std::cerr << "ERROR::FRAMEBUFFER not complete!\n";
-    }
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << endl;
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    unsigned  int intermediateFBO;
-    glGenFramebuffers(1, &intermediateFBO);
-    glBindFramebuffer(GL_FRAMEBUFFER, intermediateFBO);
+    // ----------------------------------------------------------------------------
 
-    unsigned int screenTexture;
-    glGenTextures(1, &screenTexture);
-    glBindTexture(GL_TEXTURE_2D, screenTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, screenTexture, 0);
-    if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-        std::cerr << "ERROR::FRAMEBUFFER not complete!\n";
-    }
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     // load models
-    // -----------
-    loadModels();
+    // ----------------------------------------------------------------------------
+    stbi_set_flip_vertically_on_load(false);
+    std::vector<Model*> models;
+    /*Model ourModel("resources/objects/backpack/backpack.obj");
+    ourModel.SetShaderTextureNamePrefix("material.");
+    models.push_back(&ourModel);*/
+    Model wallModel("resources/objects/zid/ZID.obj");
+    wallModel.SetShaderTextureNamePrefix("material.");
+    models.push_back(&wallModel);
+    Model floorModel("resources/objects/pod/POD.obj");
+    floorModel.SetShaderTextureNamePrefix("material.");
+    models.push_back(&floorModel);
+    Model chairModel("resources/objects/FORMCHAIR/LP_FORMCHAIR.obj");
+    chairModel.SetShaderTextureNamePrefix("material.");
+    models.push_back(&chairModel);
+    Model tableModel("resources/objects/01STO/Sto.obj");
+    tableModel.SetShaderTextureNamePrefix("material.");
+    models.push_back(&tableModel);
+    Model lampModel("resources/objects/02Lampa01/Lampa01.obj");
+    lampModel.SetShaderTextureNamePrefix("material.");
+    models.push_back(&lampModel);
+    Model ashtrayModel("resources/objects/01_Piksla/Piksla.obj");
+    ashtrayModel.SetShaderTextureNamePrefix("material.");
+    models.push_back(&ashtrayModel);
 
-    PointLight tablePointLight;
-    tablePointLight.position = glm::vec3(0.679f, 1.206f, 0.472f);
-    tablePointLight.ambient = glm::vec3(0.2f, 0.2f, 0.2f);
-    tablePointLight.diffuse = glm::vec3(0.6, 0.6, 0.6);
-    tablePointLight.specular = glm::vec3(0.4, 0.4, 0.4);
+    // setup lights
+    // ----------------------------------------------------------------------------
+    std::vector<PointLight> pointLights;
+    loadPointLights(&pointLights);
+    // ----------------------------------------------------------------------------
 
-
-
-    tablePointLight.constant = 1.0f;
-    tablePointLight.linear = 0.09f;
-    tablePointLight.quadratic = 0.032f;
-
-    ourShader.use();
-    ourShader.setInt("depthMap", 25);
-
-    screenShader.use();
-    screenShader.setInt("screenTexture", 0);
+    const unsigned int SHADOW_WIDTH = 2048, SHADOW_HEIGHT = 2048;
+    unsigned int depthMapFBOs[pointLights.size()];
+    unsigned int depthCubemaps[pointLights.size()];
+    for(int j = 0; j < pointLights.size(); j++)
+    {
+        glGenFramebuffers(1, depthMapFBOs + j);
+        glGenTextures(1, depthCubemaps + j);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, depthCubemaps[j]);
+        for(unsigned int i = 0; i < 6; i++)
+        {
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+        }
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+        glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBOs[j]);
+        glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, depthCubemaps[j], 0);
+        glDrawBuffer(GL_NONE);
+        glReadBuffer(GL_NONE);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
 
     // draw in wireframe
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
     // render loop
     // -----------
+    aaShader.use();
+    aaShader.setInt("screenTexture", 24);
+    aaShader.setInt("SCR_WIDTH", SCR_WIDTH);
+    aaShader.setInt("SCR_HEIGHT", SCR_HEIGHT);
+    ourShader.use();
+    //ourShader.setInt("depthMap", 25);
+
     while (!glfwWindowShouldClose(window)) {
         // per-frame time logic
         // --------------------
@@ -334,80 +295,86 @@ int main() {
         // input
         // -----
         processInput(window);
-
-
         // render
-        // ------
+        // ------------------------------------------------------------------------------------------------
         glClearColor(programState->clearColor.r, programState->clearColor.g, programState->clearColor.b, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        float nearPlane = 1.0f;
-        float farPlane = 25.0f;
-        glm::mat4 shadowProj = glm::perspective(glm::radians(90.0f), (float)SHADOW_WIDTH / (float)SHADOW_HEIGHT, nearPlane, farPlane);
-        std::vector<glm::mat4> shadowTransforms;
-        shadowTransforms.push_back(shadowProj * glm::lookAt(tablePointLight.position, tablePointLight.position + glm::vec3( 1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)));
-        shadowTransforms.push_back(shadowProj * glm::lookAt(tablePointLight.position, tablePointLight.position + glm::vec3(-1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)));
-        shadowTransforms.push_back(shadowProj * glm::lookAt(tablePointLight.position, tablePointLight.position + glm::vec3( 0.0f,  1.0f,  0.0f), glm::vec3(0.0f,  0.0f,  1.0f)));
-        shadowTransforms.push_back(shadowProj * glm::lookAt(tablePointLight.position, tablePointLight.position + glm::vec3( 0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)));
-        shadowTransforms.push_back(shadowProj * glm::lookAt(tablePointLight.position, tablePointLight.position + glm::vec3( 0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)));
-        shadowTransforms.push_back(shadowProj * glm::lookAt(tablePointLight.position, tablePointLight.position + glm::vec3( 0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f)));
+        float near_plane = 1.0f;
+        float far_plane = 25.0f;
+        glm::mat4 shadowProj = glm::perspective(glm::radians(90.0f), (float)SHADOW_WIDTH / (float)SHADOW_HEIGHT, near_plane, far_plane);
+        for(int j = 0; j < pointLights.size(); ++j)
+        {
+            std::vector<glm::mat4> shadowTransforms;
+            shadowTransforms.push_back(shadowProj * glm::lookAt(pointLights[j].position, pointLights[j].position + glm::vec3( 1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)));
+            shadowTransforms.push_back(shadowProj * glm::lookAt(pointLights[j].position, pointLights[j].position + glm::vec3(-1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)));
+            shadowTransforms.push_back(shadowProj * glm::lookAt(pointLights[j].position, pointLights[j].position + glm::vec3( 0.0f,  1.0f,  0.0f), glm::vec3(0.0f,  0.0f,  1.0f)));
+            shadowTransforms.push_back(shadowProj * glm::lookAt(pointLights[j].position, pointLights[j].position + glm::vec3( 0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)));
+            shadowTransforms.push_back(shadowProj * glm::lookAt(pointLights[j].position, pointLights[j].position + glm::vec3( 0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)));
+            shadowTransforms.push_back(shadowProj * glm::lookAt(pointLights[j].position, pointLights[j].position + glm::vec3( 0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f)));
 
-        glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
-        glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
-        glClear(GL_DEPTH_BUFFER_BIT);
-        simpleDepthShader.use();
-        for(unsigned int i = 0; i < 6; i++)
-            simpleDepthShader.setMat4("shadowMatrices[" + std::to_string(i) + "]", shadowTransforms[i]);
-        simpleDepthShader.setFloat("far_plane", farPlane);
-        simpleDepthShader.setVec3("lightPos", tablePointLight.position);
-        renderScene(simpleDepthShader);
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+            glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBOs[j]);
+            glClear(GL_DEPTH_BUFFER_BIT);
+            simpleDepthShader.use();
+            for(unsigned int i = 0; i < 6; ++i)
+            {
+                simpleDepthShader.setMat4("shadowMatrices[" + std::to_string(i) + "]", shadowTransforms[i]);
+            }
+            simpleDepthShader.setFloat("far_plane", far_plane);
+            simpleDepthShader.setVec3("lightPos", pointLights[j].position);
+            glDisable(GL_CULL_FACE);
+            renderScene(simpleDepthShader, models);
 
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        }
+
+        glEnable(GL_CULL_FACE);
         glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
-
-        //glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        // ------------------------------------------------------------------------------------------------
+        
+        glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
         glClearColor(programState->clearColor.r, programState->clearColor.g, programState->clearColor.b, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glEnable(GL_DEPTH_TEST);
 
         // don't forget to enable shader before setting uniforms
         ourShader.use();
-        ourShader.setVec3("pointLight.position", tablePointLight.position);
-        ourShader.setVec3("pointLight.ambient", tablePointLight.ambient);
-        ourShader.setVec3("pointLight.diffuse", tablePointLight.diffuse);
-        ourShader.setVec3("pointLight.specular", tablePointLight.specular);
-        ourShader.setFloat("pointLight.constant", tablePointLight.constant);
-        ourShader.setFloat("pointLight.linear", tablePointLight.linear);
-        ourShader.setFloat("pointLight.quadratic", tablePointLight.quadratic);
-        ourShader.setVec3("viewPosition", camera.Position);
-        ourShader.setFloat("material.shininess", 32.0f);
+        setPointLights(ourShader, pointLights);
+        ourShader.setVec3("viewPosition", programState->camera.Position);
         // view/projection transformations
-        glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom),
+        glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),
                                                 (float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
-        glm::mat4 view = camera.GetViewMatrix();
+        glm::mat4 view = programState->camera.GetViewMatrix();
         ourShader.setMat4("projection", projection);
         ourShader.setMat4("view", view);
 
-        ourShader.setFloat("far_plane", farPlane);
-        glActiveTexture(GL_TEXTURE25);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, depthCubemap);
-        renderScene(ourShader);
+        ourShader.setInt("shadows", shadows);
+        ourShader.setInt("num_of_lights", pointLights.size());
+        ourShader.setFloat("far_plane", far_plane);
+        ourShader.setInt("reverse_normals", 0);
+        for(int i = 0; i < pointLights.size(); ++i)
+        {
+            ourShader.setInt("depthMaps[" + std::to_string(i) + "]", 10 + i);
+            glActiveTexture(GL_TEXTURE10 + i);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, depthCubemaps[i]);
+        }
+        renderScene(ourShader, models);
 
-       /* glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, intermediateFBO);
-        glBlitFramebuffer(0, 0, SCR_WIDTH, SCR_HEIGHT, 0, 0, SCR_WIDTH, SCR_HEIGHT, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-
+        // ------------------------------------------------------------------------------------------------
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glClearColor(programState->clearColor.r, programState->clearColor.g, programState->clearColor.b, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         glDisable(GL_DEPTH_TEST);
-
-        screenShader.use();
+        aaShader.use();
         glBindVertexArray(quadVAO);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, screenTexture);
-        glDrawArrays(GL_TRIANGLES, 0, 6);*/
+        glActiveTexture(GL_TEXTURE24);
+        glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, textureColorBufferMultisampled);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        glEnable(GL_DEPTH_TEST);
+        // ------------------------------------------------------------------------------------------------
+
 
         if (programState->ImGuiEnabled)
             DrawImGui(programState);
@@ -431,6 +398,143 @@ int main() {
     return 0;
 }
 
+void renderScene(Shader shader, std::vector<Model*> models)
+{
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(0.5f, 0.3f, 0.5f));
+    model = glm::scale(model, glm::vec3(0.5));
+    shader.setMat4("model", model);
+    models[0]->Draw(shader);
+
+    model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(0.5f, 0.3f, 0.5f));
+    model = glm::scale(model, glm::vec3(0.5));
+    shader.setMat4("model", model);
+    models[1]->Draw(shader);
+
+    model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(-3.0f, 0.32f, -3.0f));
+    model = glm::rotate(model, 45.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+    model = glm::scale(model, glm::vec3(2.7));
+    shader.setMat4("model", model);
+    models[2]->Draw(shader);
+
+    model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(5.0f, 0.32f, -2.0f));
+    model = glm::rotate(model, -14.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+    model = glm::scale(model, glm::vec3(2.7));
+    shader.setMat4("model", model);
+    models[2]->Draw(shader);
+
+    model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(1.5f, 1.35f, 1.5f));
+    model = glm::rotate(model, -19.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+    model = glm::scale(model, glm::vec3(1.0));
+    shader.setMat4("model", model);
+    models[3]->Draw(shader);
+
+    model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(1.5f, 16.0f, 1.5f));
+    model = glm::rotate(model, -45.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+    model = glm::scale(model, glm::vec3(0.05f));
+    shader.setMat4("model", model);
+    models[4]->Draw(shader);
+
+    model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(1.5f, 3.03f, 1.5f));
+    //model = glm::rotate(model, -19.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+    model = glm::scale(model, glm::vec3(0.04));
+    shader.setMat4("model", model);
+    models[5]->Draw(shader);
+}
+
+void loadPointLights(std::vector<PointLight> *pointLights)
+{
+    PointLight& pointLight = programState->pointLight;
+    /*pointLight.position = glm::vec3(4.0f, 4.0, 0.0);
+    pointLight.ambient = glm::vec3(0.1, 0.1, 0.1);
+    pointLight.diffuse = glm::vec3(0.5, 0.5, 0.5);
+    pointLight.specular = glm::vec3(0.3, 0.3, 0.2);*/
+    pointLight.position = glm::vec3(1.58f, 11.0, 1.5);
+    pointLight.ambient = glm::vec3(0.2, 0.2, 0.2);
+    pointLight.diffuse = glm::vec3(0.6, 0.6, 0.6);
+    pointLight.specular = glm::vec3(0.2, 0.2, 0.2);
+
+    pointLight.constant = 1.2f;
+    pointLight.linear = 0.09f;
+    pointLight.quadratic = 0.032f;
+
+    pointLights->push_back(pointLight);
+
+    PointLight pointLight2;
+    pointLight2.position = glm::vec3(2.0f, 5.0, 0.0);
+    pointLight2.ambient = glm::vec3(0.1, 0.1, 0.1);
+    pointLight2.diffuse = glm::vec3(0.4, 0.4, 0.4);
+    pointLight2.specular = glm::vec3(0.3, 0.3, 0.3);
+
+    pointLight2.constant = 1.0f;
+    pointLight2.linear = 0.09f;
+    pointLight2.quadratic = 0.032f;
+
+    pointLights->push_back(pointLight2);
+
+}
+
+void setPointLights(Shader shader, std::vector<PointLight> &pointLights)
+{
+    shader.use();
+    for(int i = 0; i < pointLights.size(); ++i)
+    {
+        shader.setVec3("pointLights[" + std::to_string(i) + "].position", pointLights[i].position);
+        shader.setVec3("pointLights[" + std::to_string(i) + "].ambient", pointLights[i].ambient);
+        shader.setVec3("pointLights[" + std::to_string(i) + "].diffuse", pointLights[i].diffuse);
+        shader.setVec3("pointLights[" + std::to_string(i) + "].specular", pointLights[i].specular);
+        shader.setFloat("pointLights[" + std::to_string(i) + "].constant", pointLights[i].constant);
+        shader.setFloat("pointLights[" + std::to_string(i) + "].linear", pointLights[i].linear);
+        shader.setFloat("pointLights[" + std::to_string(i) + "].quadratic", pointLights[i].quadratic);
+    }
+    //pointLights[0].position = glm::vec3(4.0 * cos(currentFrame), 4.0f, 4.0 * sin(currentFrame));
+}
+
+/*unsigned int loadTexture(const char *path, bool gammaCorrection) {
+    unsigned int textureID;
+    glGenTextures(1, &textureID);
+    int width, height, nrComponents;
+    unsigned char *data = stbi_load(path, &width, &height, &nrComponents, 0);
+    if (data)
+    {
+        GLenum internalFormat;
+        GLenum dataFormat;
+        if(nrComponents == 1)
+        {
+            internalFormat = dataFormat = GL_RED;
+        }
+        else if (nrComponents == 3)
+        {
+            internalFormat = gammaCorrection ? GL_SRGB : GL_RGB;
+            dataFormat = GL_RGB;
+        }
+        else if (nrComponents == 4)
+        {
+            internalFormat = gammaCorrection ? GL_SRGB_ALPHA : GL_RGBA;
+            dataFormat = GL_RGBA;
+        }
+
+        glBindTexture(GL_TEXTURE_2D, textureID);
+        glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, dataFormat, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    } else {
+        std::cout << "Texture failed to load at path: " << path << std::endl;
+    }
+    stbi_image_free(data);
+    return textureID;
+}*/
+
 // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
 // ---------------------------------------------------------------------------------------------------------
 void processInput(GLFWwindow *window) {
@@ -438,13 +542,13 @@ void processInput(GLFWwindow *window) {
         glfwSetWindowShouldClose(window, true);
 
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-        camera.ProcessKeyboard(FORWARD, deltaTime);
+        programState->camera.ProcessKeyboard(FORWARD, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-        camera.ProcessKeyboard(BACKWARD, deltaTime);
+        programState->camera.ProcessKeyboard(BACKWARD, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-        camera.ProcessKeyboard(LEFT, deltaTime);
+        programState->camera.ProcessKeyboard(LEFT, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-        camera.ProcessKeyboard(RIGHT, deltaTime);
+        programState->camera.ProcessKeyboard(RIGHT, deltaTime);
 }
 
 // glfw: whenever the window size changed (by OS or user resize) this callback function executes
@@ -470,14 +574,14 @@ void mouse_callback(GLFWwindow *window, double xpos, double ypos) {
     lastX = xpos;
     lastY = ypos;
 
-    if (CameraMouseMovementUpdateEnabled)
-        camera.ProcessMouseMovement(xoffset, yoffset);
+    if (programState->CameraMouseMovementUpdateEnabled)
+        programState->camera.ProcessMouseMovement(xoffset, yoffset);
 }
 
 // glfw: whenever the mouse scroll wheel scrolls, this callback is called
 // ----------------------------------------------------------------------
 void scroll_callback(GLFWwindow *window, double xoffset, double yoffset) {
-    camera.ProcessMouseScroll(yoffset);
+    programState->camera.ProcessMouseScroll(yoffset);
 }
 
 void DrawImGui(ProgramState *programState) {
@@ -491,16 +595,23 @@ void DrawImGui(ProgramState *programState) {
         ImGui::Begin("Hello window");
         ImGui::Text("Hello text");
         ImGui::SliderFloat("Float slider", &f, 0.0, 1.0);
+        ImGui::ColorEdit3("Background color", (float *) &programState->clearColor);
+        ImGui::DragFloat3("Backpack position", (float*)&programState->backpackPosition);
+        ImGui::DragFloat("Backpack scale", &programState->backpackScale, 0.05, 0.1, 4.0);
+
+        ImGui::DragFloat("pointLight.constant", &programState->pointLight.constant, 0.05, 0.0, 1.0);
+        ImGui::DragFloat("pointLight.linear", &programState->pointLight.linear, 0.05, 0.0, 1.0);
+        ImGui::DragFloat("pointLight.quadratic", &programState->pointLight.quadratic, 0.05, 0.0, 1.0);
         ImGui::End();
     }
 
     {
         ImGui::Begin("Camera info");
-        const Camera& c = camera;
+        const Camera& c = programState->camera;
         ImGui::Text("Camera position: (%f, %f, %f)", c.Position.x, c.Position.y, c.Position.z);
         ImGui::Text("(Yaw, Pitch): (%f, %f)", c.Yaw, c.Pitch);
         ImGui::Text("Camera front: (%f, %f, %f)", c.Front.x, c.Front.y, c.Front.z);
-        ImGui::Checkbox("Camera mouse update", &CameraMouseMovementUpdateEnabled);
+        ImGui::Checkbox("Camera mouse update", &programState->CameraMouseMovementUpdateEnabled);
         ImGui::End();
     }
 
@@ -512,183 +623,10 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
     if (key == GLFW_KEY_F1 && action == GLFW_PRESS) {
         programState->ImGuiEnabled = !programState->ImGuiEnabled;
         if (programState->ImGuiEnabled) {
-            CameraMouseMovementUpdateEnabled = false;
+            programState->CameraMouseMovementUpdateEnabled = false;
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         } else {
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         }
     }
-}
-
-unsigned int loadTexture(char const * path, bool gammaCorrection)
-{
-    unsigned int textureID;
-    glGenTextures(1, &textureID);
-
-    int width, height, nrComponents;
-    unsigned char *data = stbi_load(path, &width, &height, &nrComponents, 0);
-    if (data)
-    {
-        GLenum internalFormat;
-        GLenum dataFormat;
-        if (nrComponents == 1)
-        {
-            internalFormat = dataFormat = GL_RED;
-        }
-        else if (nrComponents == 3)
-        {
-            internalFormat = gammaCorrection ? GL_SRGB : GL_RGB;
-            dataFormat = GL_RGB;
-        }
-        else if (nrComponents == 4)
-        {
-            internalFormat = gammaCorrection ? GL_SRGB_ALPHA : GL_RGBA;
-            dataFormat = GL_RGBA;
-        }
-
-        glBindTexture(GL_TEXTURE_2D, textureID);
-        glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, dataFormat, GL_UNSIGNED_BYTE, data);
-        glGenerateMipmap(GL_TEXTURE_2D);
-
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-        stbi_image_free(data);
-    }
-    else
-    {
-        std::cout << "Texture failed to load at path: " << path << std::endl;
-        stbi_image_free(data);
-    }
-
-    return textureID;
-}
-
-void renderScene(Shader &ourShader)
-{
-    glm::mat4 model = glm::mat4(1.0f);
-
-    /*
-    //FLOOR
-    model = glm::mat4(1.0f);
-    model = glm::translate(model, glm::vec3(0.5f, 0.1f, 0.5f));
-    model = glm::rotate(model, glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-    model = glm::scale(model, glm::vec3(0.4f));
-    ourShader.setMat4("model", model);
-    glBindVertexArray(floorVAO);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, floorTexture);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-    glBindVertexArray(0);
-
-    //WALL
-    model = glm::mat4(1.0f);
-    model = glm::translate(model, glm::vec3(0.5f,0.0f,-3.0f));
-    model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-    model = glm::scale(model, glm::vec3(0.4));
-    ourShader.setMat4("model", model);
-    glBindVertexArray(wallVAO);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, wallTexture);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-    glBindVertexArray(0);
-
-    //WALL
-    model = glm::mat4(1.0f);
-    model = glm::translate(model, glm::vec3(-2.5f, 0.0f, 0.5f));
-    model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    model = glm::scale(model, glm::vec3(0.4));
-    ourShader.setMat4("model", model);
-    glBindVertexArray(wallVAO);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, wallTexture);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-    glBindVertexArray(0);
-    */
-
-    //FLOOR
-    model = glm::mat4(1.0f);
-    model = glm::translate(model, glm::vec3(0.5f, 0.3f, 0.5f));
-    model = glm::scale(model, glm::vec3(0.1));
-    ourShader.setMat4("model", model);
-    floorModel->Draw(ourShader);
-
-    //WALL
-    model = glm::mat4(1.0f);
-    model = glm::translate(model, glm::vec3(0.5f, 0.3f, 0.5f));
-    model = glm::scale(model, glm::vec3(0.1));
-    ourShader.setMat4("model", model);
-    wallModel->Draw(ourShader);
-
-    //TABLE
-    model = glm::mat4(1.0f);
-    model = glm::translate(model, glm::vec3(0.5f, 0.55f, 0.5f));
-    model = glm::scale(model, glm::vec3(0.25));
-    ourShader.setMat4("model", model);
-    tableModel->Draw(ourShader);
-
-    //CHAIR1
-    model = glm::mat4(1.0f);
-    model = glm::translate(model, glm::vec3(1.4f, 0.71f, -0.2f));
-    model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    model = glm::scale(model, glm::vec3(0.001));
-    ourShader.setMat4("model", model);
-    chairModel_1->Draw(ourShader);
-
-    //CHAIR2
-    model = glm::mat4(1.0f);
-    model = glm::translate(model, glm::vec3(-1.0f, 0.71f, -0.2f));
-    model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    model = glm::scale(model, glm::vec3(0.001));
-    ourShader.setMat4("model", model);
-    chairModel_1->Draw(ourShader);
-
-    //FOLDER
-    model = glm::mat4(1.0f);
-    model = glm::translate(model, glm::vec3(0.7f, 0.97f, 0.1f));
-    model = glm::rotate(model, glm::radians(46.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    model = glm::scale(model, glm::vec3(0.01));
-    ourShader.setMat4("model", model);
-    folderModel->Draw(ourShader);
-
-    //TABLE_LAMP
-    model = glm::mat4(1.0f);
-    model = glm::translate(model, glm::vec3(0.7f, 1.18f, -0.25f));
-    model = glm::rotate(model, glm::radians(-87.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    model = glm::scale(model, glm::vec3(0.01f));
-    ourShader.setMat4("model", model);
-    tableLampModel->Draw(ourShader);
-
-    //LAMP
-    model = glm::mat4(1.0f);
-    model = glm::translate(model, glm::vec3(0.7f, 3.0f, 0.5f));
-    model = glm::scale(model, glm::vec3(0.01f));
-    ourShader.setMat4("model", model);
-    lampModel->Draw(ourShader);
-}
-
-void loadModels()
-{
-    tableModel = new Model("resources/objects/01STO/Sto.obj");
-    tableModel->SetShaderTextureNamePrefix("material.");
-
-    chairModel_1 = new Model("resources/objects/01Stolica/Stolica.obj");
-    chairModel_1->SetShaderTextureNamePrefix("material.");
-
-    folderModel = new Model("resources/objects/04Folder/Folder.obj");
-    folderModel->SetShaderTextureNamePrefix("material.");
-
-    tableLampModel = new Model("resources/objects/03Lampa02/Lampa02.obj");
-    folderModel->SetShaderTextureNamePrefix("material.");
-
-    lampModel = new Model("resources/objects/02Lampa01/Lampa01.obj");
-    folderModel->SetShaderTextureNamePrefix("material.");
-
-    floorModel = new Model("resources/objects/pod/POD.obj");
-    floorModel->SetShaderTextureNamePrefix("material.");
-
-    wallModel = new Model("resources/objects/zid/ZID.obj");
-    wallModel->SetShaderTextureNamePrefix("material.");
 }
