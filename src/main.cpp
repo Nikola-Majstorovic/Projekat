@@ -152,6 +152,7 @@ int main() {
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
     (void) io;
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 
 
 
@@ -223,9 +224,6 @@ int main() {
     // ----------------------------------------------------------------------------
     stbi_set_flip_vertically_on_load(false);
     std::vector<Model*> models;
-    /*Model ourModel("resources/objects/backpack/backpack.obj");
-    ourModel.SetShaderTextureNamePrefix("material.");
-    models.push_back(&ourModel);*/
     Model wallModel("resources/objects/zid/ZID.obj");
     wallModel.SetShaderTextureNamePrefix("material.");
     models.push_back(&wallModel);
@@ -380,9 +378,10 @@ int main() {
         glEnable(GL_DEPTH_TEST);
         // ------------------------------------------------------------------------------------------------
 
-
+        /*
         if (programState->ImGuiEnabled)
             DrawImGui(programState);
+        */
 
 
 
@@ -447,7 +446,6 @@ void renderScene(Shader shader, std::vector<Model*> models)
 
     model = glm::mat4(1.0f);
     model = glm::translate(model, glm::vec3(1.5f, 3.03f, 1.5f));
-    //model = glm::rotate(model, -19.0f, glm::vec3(0.0f, 1.0f, 0.0f));
     model = glm::scale(model, glm::vec3(0.04));
     shader.setMat4("model", model);
     models[5]->Draw(shader);
@@ -455,7 +453,6 @@ void renderScene(Shader shader, std::vector<Model*> models)
 
     model = glm::mat4(1.0f);
     model = glm::translate(model, glm::vec3(1.9f, 3.03f, -2.5f));
-    //model = glm::rotate(model, -19.0f, glm::vec3(0.0f, 1.0f, 0.0f));
     model = glm::scale(model, glm::vec3(0.05));
     shader.setMat4("model", model);
     models[6]->Draw(shader);
@@ -464,10 +461,6 @@ void renderScene(Shader shader, std::vector<Model*> models)
 void loadPointLights(std::vector<PointLight> *pointLights)
 {
     PointLight& pointLight = programState->pointLight;
-    /*pointLight.position = glm::vec3(4.0f, 4.0, 0.0);
-    pointLight.ambient = glm::vec3(0.1, 0.1, 0.1);
-    pointLight.diffuse = glm::vec3(0.5, 0.5, 0.5);
-    pointLight.specular = glm::vec3(0.3, 0.3, 0.2);*/
     pointLight.position = glm::vec3(1.58f, 11.0, 1.5);
     pointLight.ambient = glm::vec3(0.2, 0.2, 0.2);
     pointLight.diffuse = glm::vec3(1.2, 1.2, 1.2);
@@ -480,11 +473,7 @@ void loadPointLights(std::vector<PointLight> *pointLights)
     pointLights->push_back(pointLight);
 
     PointLight pointLight2;
-    //pointLight2.position = glm::vec3(2.0f, 5.0, 0.0);
     pointLight2.position = glm::vec3(1.99f, 4.71f, -2.47f);
-    /*pointLight2.ambient = glm::vec3(0.0, 0.0, 0.0);
-    pointLight2.diffuse = glm::vec3(0.0, 0.0, 0.0);
-    pointLight2.specular = glm::vec3(0.0, 0.0, 0.0);*/
     pointLight2.ambient = glm::vec3(0.1, 0.1, 0.1);
     pointLight2.diffuse = glm::vec3(1.0, 1.0, 1.0);
     pointLight2.specular = glm::vec3(0.6, 0.6, 0.6);
@@ -510,47 +499,7 @@ void setPointLights(Shader shader, std::vector<PointLight> &pointLights)
         shader.setFloat("pointLights[" + std::to_string(i) + "].linear", pointLights[i].linear);
         shader.setFloat("pointLights[" + std::to_string(i) + "].quadratic", pointLights[i].quadratic);
     }
-    //pointLights[0].position = glm::vec3(4.0 * cos(currentFrame), 4.0f, 4.0 * sin(currentFrame));
 }
-
-/*unsigned int loadTexture(const char *path, bool gammaCorrection) {
-    unsigned int textureID;
-    glGenTextures(1, &textureID);
-    int width, height, nrComponents;
-    unsigned char *data = stbi_load(path, &width, &height, &nrComponents, 0);
-    if (data)
-    {
-        GLenum internalFormat;
-        GLenum dataFormat;
-        if(nrComponents == 1)
-        {
-            internalFormat = dataFormat = GL_RED;
-        }
-        else if (nrComponents == 3)
-        {
-            internalFormat = gammaCorrection ? GL_SRGB : GL_RGB;
-            dataFormat = GL_RGB;
-        }
-        else if (nrComponents == 4)
-        {
-            internalFormat = gammaCorrection ? GL_SRGB_ALPHA : GL_RGBA;
-            dataFormat = GL_RGBA;
-        }
-
-        glBindTexture(GL_TEXTURE_2D, textureID);
-        glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, dataFormat, GL_UNSIGNED_BYTE, data);
-        glGenerateMipmap(GL_TEXTURE_2D);
-
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    } else {
-        std::cout << "Texture failed to load at path: " << path << std::endl;
-    }
-    stbi_image_free(data);
-    return textureID;
-}*/
 
 // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
 // ---------------------------------------------------------------------------------------------------------

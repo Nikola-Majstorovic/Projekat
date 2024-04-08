@@ -51,8 +51,6 @@ vec3 gridSamplingDisk[20] = vec3[]
 float ShadowCalculation(vec3 fragPos, int light_index)
 {
     vec3 fragToLight = fragPos - pointLights[light_index].position;
-    //float closestDepth = texture(depthMap, fragToLight).r;
-    //closestDepth *= far_plane;
     float currentDepth = length(fragToLight);
     float shadow = 0.0;
     float bias = 0.25;
@@ -61,9 +59,6 @@ float ShadowCalculation(vec3 fragPos, int light_index)
     float diskRadius = (1.0 + (viewDistance / far_plane)) / 25.0;
     for(int i = 0; i < samples; ++i)
     {
-        //float closestDepth = texture(depthMaps, vec4(fragToLight + gridSamplingDisk[i] * diskRadius, 0)).r;
-        //float closestDepth = texture(depthMaps[0], fragToLight + gridSamplingDisk[i] * diskRadius).r;
-        //FragColor = vec4(texture(depthMaps[1], fragToLight).r, vec3(0.0));
         float closestDepth = 0.0;
         if(light_index == 0)
         {
@@ -100,8 +95,6 @@ float ShadowCalculation(vec3 fragPos, int light_index)
         }
     }
 
-   // FragColor = vec4(vec3(closestDepth / far_plane), 1.0);
-    //FragColor = vec4(vec3(texture(depthMaps[1], fragToLight).r), 1.0);
     shadow /= float(samples);
     return shadow;
 }
@@ -133,7 +126,6 @@ vec3 CalcPointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir, i
     float shadow = ShadowCalculation(fs_in.FragPos, light_index);
     return (ambient + ((1 - shadow) * (diffuse + specular)));
    // return (ambient + diffuse + specular);
-   //return color;
 }
 
 void main()
@@ -141,7 +133,6 @@ void main()
     vec3 normal = normalize(fs_in.Normal);
     vec3 viewDir = normalize(viewPosition - fs_in.FragPos);
     vec3 result = vec3(0.0);
-    //result += CalcPointLight(pointLights[0], normal, fs_in.FragPos, viewDir, 0);
     for(int i = 0; i < num_of_lights; i++)
     {
         if(i == 0)
