@@ -418,14 +418,14 @@ void renderScene(Shader shader, std::vector<Model*> models)
     model = glm::mat4(1.0f);
     model = glm::translate(model, glm::vec3(-3.0f, 0.32f, -3.0f));
     model = glm::rotate(model, 45.0f, glm::vec3(0.0f, 1.0f, 0.0f));
-    model = glm::scale(model, glm::vec3(2.7));
+    model = glm::scale(model, glm::vec3(2.9));
     shader.setMat4("model", model);
     models[2]->Draw(shader);
 
     model = glm::mat4(1.0f);
     model = glm::translate(model, glm::vec3(5.0f, 0.32f, -2.0f));
     model = glm::rotate(model, -14.0f, glm::vec3(0.0f, 1.0f, 0.0f));
-    model = glm::scale(model, glm::vec3(2.7));
+    model = glm::scale(model, glm::vec3(2.9));
     shader.setMat4("model", model);
     models[2]->Draw(shader);
 
@@ -450,7 +450,7 @@ void renderScene(Shader shader, std::vector<Model*> models)
     shader.setMat4("model", model);
     models[5]->Draw(shader);
 
-    
+
     model = glm::mat4(1.0f);
     model = glm::translate(model, glm::vec3(1.9f, 3.03f, -2.5f));
     //model = glm::rotate(model, -19.0f, glm::vec3(0.0f, 1.0f, 0.0f));
