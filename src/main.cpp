@@ -242,6 +242,9 @@ int main() {
     Model ashtrayModel("resources/objects/01_Piksla/Piksla.obj");
     ashtrayModel.SetShaderTextureNamePrefix("material.");
     models.push_back(&ashtrayModel);
+    Model lampV2Model("resources/objects/Lampa/old_table_lamp.obj");
+    lampV2Model.SetShaderTextureNamePrefix("material.");
+    models.push_back(&lampV2Model);
 
     // setup lights
     // ----------------------------------------------------------------------------
@@ -446,6 +449,14 @@ void renderScene(Shader shader, std::vector<Model*> models)
     model = glm::scale(model, glm::vec3(0.04));
     shader.setMat4("model", model);
     models[5]->Draw(shader);
+
+    
+    model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(1.9f, 3.03f, -2.5f));
+    //model = glm::rotate(model, -19.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+    model = glm::scale(model, glm::vec3(0.05));
+    shader.setMat4("model", model);
+    models[6]->Draw(shader);
 }
 
 void loadPointLights(std::vector<PointLight> *pointLights)
@@ -457,7 +468,7 @@ void loadPointLights(std::vector<PointLight> *pointLights)
     pointLight.specular = glm::vec3(0.3, 0.3, 0.2);*/
     pointLight.position = glm::vec3(1.58f, 11.0, 1.5);
     pointLight.ambient = glm::vec3(0.2, 0.2, 0.2);
-    pointLight.diffuse = glm::vec3(0.6, 0.6, 0.6);
+    pointLight.diffuse = glm::vec3(1.2, 1.2, 1.2);
     pointLight.specular = glm::vec3(0.2, 0.2, 0.2);
 
     pointLight.constant = 1.2f;
@@ -467,13 +478,17 @@ void loadPointLights(std::vector<PointLight> *pointLights)
     pointLights->push_back(pointLight);
 
     PointLight pointLight2;
-    pointLight2.position = glm::vec3(2.0f, 5.0, 0.0);
+    //pointLight2.position = glm::vec3(2.0f, 5.0, 0.0);
+    pointLight2.position = glm::vec3(1.99f, 4.71f, -2.47f);
+    /*pointLight2.ambient = glm::vec3(0.0, 0.0, 0.0);
+    pointLight2.diffuse = glm::vec3(0.0, 0.0, 0.0);
+    pointLight2.specular = glm::vec3(0.0, 0.0, 0.0);*/
     pointLight2.ambient = glm::vec3(0.1, 0.1, 0.1);
-    pointLight2.diffuse = glm::vec3(0.4, 0.4, 0.4);
-    pointLight2.specular = glm::vec3(0.3, 0.3, 0.3);
+    pointLight2.diffuse = glm::vec3(1.0, 1.0, 1.0);
+    pointLight2.specular = glm::vec3(0.6, 0.6, 0.6);
 
-    pointLight2.constant = 1.0f;
-    pointLight2.linear = 0.09f;
+    pointLight2.constant = 1.5f;
+    pointLight2.linear = 0.1f;
     pointLight2.quadratic = 0.032f;
 
     pointLights->push_back(pointLight2);
