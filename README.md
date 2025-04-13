@@ -1,5 +1,6 @@
 # Projekat RG2024
-
+![](screenshots/1.png)
+![](screenshots/2.png)
 ## Controls:
 W,A,S,D - camera movement controls <br>
 mouse - camera rotation control <br>
